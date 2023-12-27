@@ -1,0 +1,45 @@
+[
+[type keyword/array type ident/var]
+[type keyword/arg [type *] type]
+[type keyword/ptr type]
+[type ident/type]
+
+[expr keyword/cast type expr]
+[expr keyword/sizeof type]
+[expr keyword/lit builtin/type literal]
+[expr keyword/nop]
+[expr builtin/op1 expr]
+[expr builtin/op2 expr expr]
+
+# control
+[stmt keyword/label ident/label]
+[stmt keyword/goto ident/label]
+[stmt keyword/cond branch *]
+[stmt keyword/while expr stmt]
+[stmt keyword/for stmt expr expr stmt]
+[stmt keyword/return expr]
+[stmt keyword/returnvoid]
+[stmt keyword/continue]
+[stmt keyword/break]
+[stmt keyword/begin stmt *]
+
+# declare
+[stmt keyword/var ident/var type]
+[stmt keyword/set ident/var type expr]
+[stmt keyword/seta ident/var type [expr *]]
+[stmt keyword/sets ident/var type [designated *]]
+[stmt keyword/expr expr]
+
+[block keyword/struct ident/var [declare *]]
+[block keyword/union ident/var [declare *]]
+[block keyword/fn ident/var [declare *] type stmt]
+
+# single definition
+[declare ident/var type]
+[designated ident/var expr]
+[branch expr stmt]
+
+# special cases decided from negation + length
+[expr ident/var]
+[expr expr expr *]
+]
