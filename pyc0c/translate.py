@@ -1,5 +1,5 @@
 from . import builtins
-from pycdb.precedence import opprec
+from pycdb import opprec
 
 class Translator:
 	def __init__(self):
@@ -61,6 +61,7 @@ class Translator:
 			self.add("]")
 			return
 		prec2 = opprec(r[0])
+		assert prec2 != None
 		if prec2 >= prec:
 			self.add("(")
 		self.expr(r[1], prec2)

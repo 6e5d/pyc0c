@@ -1,13 +1,12 @@
 from importer import importer
 importer("../../pyltr/pyltr", __file__)
 importer("../../pycdb/pycdb", __file__)
+importer("../../gid/gid", __file__)
 
 from pathlib import Path
-from pycdb.precedence import table
+from pycdb.precedence import prectable
 
 import pyltr
-
-kinds = ["ident", "keyword", "nonterm", "nonterms", "builtin"]
 
 def btypes():
 	bt = ["float", "double", "int", "long", "void", "char", "bool"]
@@ -18,11 +17,9 @@ def btypes():
 
 builtins = {
 	"type": set(btypes()),
-	"op2": set(["+", "-", "*", "/", "%",
-		"&", "|", "^", "&&", "||", "<<", ">>",
-		">", ">=", "<", "<=", "==", "!=",
-		".", ",", "->", "@"] + table[14]),
-	"op1": set(["!", "~", "&p", "*p", "+n", "-n"]),
+	"op2": set(sum([prectable[idx] for idx in
+		[1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]], [])),
+	"op1": set(prectable[2]),
 }
 
 def mapliteral(term):
@@ -38,7 +35,7 @@ def ruletable():
 	path = Path(__file__).parent / "syntax.txt"
 	s = pyltr.striphash(open(path).read())
 	rules = pyltr.parse_flat(s)
-	rules2 = {}
+	commands = {}
 	for rule in rules:
 		rule2 = []
 		for term in rule:
@@ -49,6 +46,7 @@ def ruletable():
 				rule2.append(result)
 			else:
 				rule2.append(mapliteral(term))
-		rules2[(rule2[0], rule2[1])] = rule2
-	return rules2
-rules = ruletable()
+		if rule[1].startswith("keyword/"):
+			commands[rule2[1].removeprefix("keyword/")] = rule2
+	return commands
+commands = ruletable()
