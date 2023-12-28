@@ -16,27 +16,36 @@ class Translator:
 		self.add("}")
 	def add(self, *args):
 		self.output += args
-	def declare2(self, ty, var, before, after):
+	def declare2(self, var, ty, before, after):
 		if isinstance(ty, str):
 			self.add(ty, " ")
 			self.add(before)
 			self.add(var)
 			self.add(after)
+			return
 		match ty[0]:
-			case "array":
-				self.declare2(ty[1], var,
+			case "Array":
+				self.declare2(var, ty[1],
 					before + "(", after)
 				self.add("[", ty[2], "]", ")")
-			case "arg":
-				self.declare2(ty[1], var,
+			case "Arg":
+				self.declare2(var, ty[1],
 					before + "(", after)
 				self.argtype(ty[2])
 				self.add(")")
-			case "ptr":
-				self.declare2(ty[1], var,
+			case "Ptr":
+				self.declare2(var, ty[1],
 					before + "*", after)
-	def declare(self, ty, var):
-		self.declare2(ty, var, "", "")
+			case "Struct":
+				self.add("struct ")
+				self.declare2(var, ty[1], before, after)
+			case "Union":
+				self.add("union ")
+				self.declare2(var, ty[1], before, after)
+			case x:
+				raise Exception(var, ty)
+	def declare(self, var, ty):
+		self.declare2(var, ty, "", "")
 	def op1(self, r, prec):
 		if prec <= 1:
 			self.add("(")
@@ -54,12 +63,6 @@ class Translator:
 		if prec <= 1:
 			self.add(")")
 	def op2(self, r, prec):
-		if r[0] == "@":
-			self.expr(r[1], 1)
-			self.add("[")
-			self.expr(r[2], 1)
-			self.add("]")
-			return
 		prec2 = opprec(r[0])
 		assert prec2 != None
 		if prec2 >= prec:
@@ -80,70 +83,46 @@ class Translator:
 			self.add(",")
 		self.scopeout();
 	def expr(self, r, prec):
-		if r[0] in builtins["op2"]:
-			self.op2(r, prec)
-		elif r[0] == "lit":
-			if r[1] == "char":
-				self.add(f"'{r[2]}'")
-			elif r[1] == "str":
-				self.add(f'"{r[2]}"')
-			else:
-				self.add(r[2])
-		elif r[0] in builtins["op1"]:
-			self.op1(r, prec)
-		elif r[0] == "cast":
-			if prec <= 1:
-				self.add("(")
-			self.add("(")
-			self.declare(r[1], "")
-			self.add(")")
-			self.expr(r[2], 2)
-			if prec <= 1:
-				self.add(")")
-		elif r[0] == "casts":
-			if prec <= 1:
-				self.add("(")
-			self.add("(")
-			self.declare(r[1], "")
-			self.add(")")
-			self.sval(r[2])
-			if prec <= 1:
-				self.add(")")
-		elif r[0] == "sizeof":
-			self.add("sizeof(")
-			self.declare(r[1], "")
-			self.add(")")
-		elif isinstance(r, str):
-			self.add(r)
-		else:
-			# call
-			self.expr(r[0], 1)
-			self.argval(r[1:])
-	def stmt(self, r):
 		match r[0]:
 			case "begin":
 				self.scopein()
 				for rr in r[1:]:
 					self.newline()
-					self.stmt(rr)
+					if self.expr(rr, 16) not in [
+						"begin",
+						"cond",
+						"while",
+						"for",
+					]:
+						self.add(";")
 				self.scopeout()
+				return r[0]
 			case "set" | "sets" | "var":
-				self.declare(r[2], r[1])
+				self.declare(r[1], r[2])
 				if r[0] == "set":
 					self.add(" = ")
 					self.expr(r[3], 14)
 				elif r[0] == "sets":
 					self.add(" = ")
-					self.sval(r[3], 14)
-				self.add(";")
+					self.sval(r[3])
+				return
+			case "continue":
+				self.add("continue")
+				return
+			case "break":
+				self.add("break")
+				return
+			case "nop":
+				return
 			case "return":
 				self.add("return ")
 				self.expr(r[1], 16)
-				self.add(";")
+				return
 			case "sizeof":
-				self.add("sizeof ")
-				self.declare(r[1], "")
-				self.add(";")
+				self.add("sizeof(")
+				self.declare("", r[1])
+				self.add(")")
+				return
 			case "cond":
 				for idx, branch in enumerate(r[1:]):
 					if idx > 0:
@@ -152,35 +131,85 @@ class Translator:
 					self.add("(")
 					self.expr(branch[0], 16)
 					self.add(")")
-					self.stmt(branch[1])
+					self.expr(branch[1], 16)
+				return r[0]
 			case "while":
 				self.add("while")
 				self.add("(")
 				self.expr(r[1], 16)
 				self.add(")")
-				self.stmt(r[2])
+				self.expr(r[2], 16)
+				return r[0]
 			case "for":
 				self.add("for")
 				self.add("(")
-				self.stmt(r[1])
+				self.expr(r[1], 16)
+				self.add(";")
 				self.expr(r[2], 16)
 				self.add(";")
 				self.expr(r[3], 16)
 				self.add(")")
-				self.stmt(r[4])
+				self.expr(r[4], 16)
+				return r[0]
 			case "goto":
 				assert isinstance(r[1], str)
 				self.add("goto ")
 				self.add(r[1])
-				self.add(";")
+				return
 			case "label":
 				self.add(r[1])
 				self.add(":;")
-			case "expr":
-				self.expr(r[1], 16)
-				self.add(";")
-			case x:
-				raise Exception(x)
+				return
+			case "@":
+				self.expr(r[1], 1)
+				self.add("[")
+				self.expr(r[2], 1)
+				self.add("]")
+				return
+			case "lit":
+				if r[1] == "char":
+					self.add(f"'{r[2]}'")
+				elif r[1] == "str":
+					self.add(f'"{r[2]}"')
+				else:
+					self.add(r[2])
+				return
+			case "cast":
+				if prec <= 1:
+					self.add("(")
+				self.add("(")
+				self.declare("", r[1])
+				self.add(")")
+				self.expr(r[2], 2)
+				if prec <= 1:
+					self.add(")")
+				return
+			case "casts":
+				if prec <= 1:
+					self.add("(")
+				self.add("(")
+				self.declare("", r[1])
+				self.add(")")
+				self.sval(r[2])
+				if prec <= 1:
+					self.add(")")
+				return
+			case "sizeof":
+				self.add("sizeof(")
+				self.declare("", r[1])
+				self.add(")")
+				return
+		# the above cases are in op1/op2 but needs special handling
+		if r[0] in builtins["op2"]:
+			self.op2(r, prec)
+		elif r[0] in builtins["op1"]:
+			self.op1(r, prec)
+		elif isinstance(r, str):
+			self.add(r)
+		else:
+			# call
+			self.expr(r[0], 1)
+			self.argval(r[1:])
 	def argtype(self, r):
 		self.add("(")
 		first = True
@@ -189,7 +218,7 @@ class Translator:
 				first = False
 			else:
 				self.add(",")
-			self.declare(ty, "")
+			self.declare("", ty)
 		if first:
 			self.add("void")
 		self.add(")")
@@ -205,7 +234,7 @@ class Translator:
 				first = False
 			else:
 				self.add(syms[1])
-			self.declare(ty, var)
+			self.declare(var, ty)
 		if first:
 			if struct_style:
 				raise Exception("empty struct not allowed")
@@ -223,20 +252,24 @@ class Translator:
 				self.add(",")
 			self.expr(var, 15)
 		self.add(")")
+	def translate_struct(self, r, header):
+		if header:
+			self.add(f"typedef struct {r[1]} {r[1]}")
+		else:
+			self.add(f"struct {r[1]}")
+			self.argbind(r[2], True)
+		self.add(";")
 	def translate(self, r, header):
 		match r[0]:
 			case "fn":
-				self.declare(r[3], r[1])
+				self.declare(r[1], r[3])
 				self.argbind(r[2], False)
 				if header:
 					self.add(";")
 				else:
-					self.stmt(r[4])
+					self.expr(r[4], 16)
 			case "struct":
-				self.add("typedef ", "struct")
-				self.argbind(r[2], True)
-				self.add(r[1])
-				self.add(";")
+				self.translate_struct(r, header)
 			case x:
 				raise Exception(x)
 		output = self.output

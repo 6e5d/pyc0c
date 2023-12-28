@@ -1,9 +1,8 @@
 # symbol table analysis
 
 from gid import gid2c
-from pycdb import btypes, consts, opprec
+from pycdb import btypes, consts, opprec, syssyms
 from . import commands
-from .symdb import resolve_external
 
 # symbolman.analyze takes a list of blocks
 # compute all the required symbol information(blockwise), stored in itself
@@ -37,7 +36,9 @@ class Symbolman:
 				if sym.startswith(snake):
 					return gid
 		return None
-	def add_symbol(self, sym, istype):
+	def add_symbol(self, sym, _istype):
+		if not isinstance(sym, str):
+			raise Exception(sym)
 		if sym[0].isdigit():
 			return
 		if opprec(sym) != None:
@@ -55,19 +56,20 @@ class Symbolman:
 		if ns != None:
 			self.kjkj[sym] = ns
 		else:
-			ns = resolve_external(sym, istype)
+			ns = syssyms[sym]
 			self.external[sym] = ns
 		if self.parsing_public:
-			self.header_includes.add(ns)
+			self.header_includes.add(tuple(ns))
 		else:
-			self.src_includes.add(ns)
+			self.src_includes.add(tuple(ns))
 	def uniform(self, j, rule_name):
 		assert rule_name.startswith("nonterm/")
 		match rule_name.removeprefix("nonterm/"):
 			case "declare":
 				self.locals[-1].add(j[0])
+				self.analyze_rule(j[1], "nonterm/type")
 			case "designated":
-				pass
+				self.analyze_rule(j[1], "nonterm/expr")
 			case "branch":
 				self.analyze_rule(j[0], "nonterm/expr")
 				self.analyze_rule(j[1], "nonterm/expr")
@@ -128,6 +130,7 @@ class Symbolman:
 					self.add_symbol(j, False)
 				case x:
 					raise Exception(j, x)
+			return
 		if isinstance(j[0], str) and j[0] in commands:
 			if j[0] == "begin":
 				self.locals.append(set())
@@ -139,10 +142,25 @@ class Symbolman:
 			for jj in j:
 				self.analyze_rule(jj, "nonterm/expr")
 			return
+	# toplevel: param types/return types/fields types
+	# if the declaration itself is public(parsing_public == True)
+	# if these types used external type, we have to reexport headers
+	def analyze_toplevel(self, block):
+		match block[0]:
+			case "fn":
+				for j in block[2]:
+					self.uniform(j, "nonterm/declare")
+				self.analyze_rule(block[3], "nonterm/type")
+				self.parsing_public = False
+				self.analyze_rule(block[4], "nonterm/expr")
+			case "struct" | "union":
+				for j in block[2]:
+					self.uniform(j, "nonterm/fields")
+			case x:
+				raise Exception(x)
 	def analyze(self, blocks):
 		# first round
 		for block in blocks:
-			assert block[0] in ["fn", "struct", "union"]
 			ret = self.gid_match(block[1])
 			self.defined.append(block[1])
 			self.isexports.append(ret != None)
@@ -150,5 +168,5 @@ class Symbolman:
 		for (isexport, block) in zip(self.isexports, blocks):
 			self.parsing_public = isexport
 			self.locals.append(set())
-			self.analyze_rule(block, "nonterm/block")
+			self.analyze_toplevel(block)
 			self.locals.pop()
