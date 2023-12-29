@@ -14,6 +14,7 @@ class Symbolman:
 		self.snakes = []
 		self.parsing_public = False
 		self.locals = []
+		self.missing = []
 
 		externals = []
 		for gid in gids:
@@ -36,16 +37,26 @@ class Symbolman:
 
 		self.src_includes = set()
 		self.header_includes = set()
-	def gid_match(self, sym):
-		if sym[0].isupper():
-			for gid, camel in zip(self.gids, self.camels):
-				if sym.startswith(camel):
-					return gid
-		else:
-			for gid, snake in zip(self.gids, self.snakes):
-				if sym.startswith(snake):
+	def gid_match_ty(self, sym):
+		for gid, camel in zip(self.gids, self.camels):
+			if sym.startswith(camel):
+				remain = sym.removeprefix(camel)
+				if not remain or remain[0] == "_"\
+					or remain[0].isupper():
 					return gid
 		return None
+	def gid_match_fn(self, sym):
+		for gid, snake in zip(self.gids, self.snakes):
+			if sym.startswith(snake):
+				remain = sym.removeprefix(snake)
+				if not remain or remain[0] == "_":
+					return gid
+		return None
+	def gid_match(self, sym):
+		if sym[0].isupper():
+			return self.gid_match_ty(sym)
+		else:
+			return self.gid_match_fn(sym)
 	def add_symbol(self, sym, _istype):
 		if not isinstance(sym, str):
 			raise Exception(sym)
@@ -60,12 +71,16 @@ class Symbolman:
 		for l in self.locals:
 			if sym in l:
 				return
+		# print(sym)
 		if sym in consts:
 			return
 		ns = self.gid_match(sym)
 		if ns != None:
 			self.kjkj[sym] = ns
 		else:
+			if sym not in self.symtable:
+				self.missing.append(sym)
+				return
 			ns = self.symtable[sym]
 			self.external[sym] = ns
 		if self.parsing_public:
@@ -193,3 +208,8 @@ class Symbolman:
 			self.locals.append(set())
 			self.analyze_toplevel(block)
 			self.locals.pop()
+		missing = set(self.missing)
+		if missing:
+			for sym in missing:
+				print(sym)
+			raise Exception("missing", len(missing), "symbols")

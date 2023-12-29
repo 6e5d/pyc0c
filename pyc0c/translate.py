@@ -16,41 +16,35 @@ class Translator:
 		self.add("}")
 	def add(self, *args):
 		self.output += args
-	def declare2(self, var, ty, before, after):
-		if isinstance(ty, str):
-			self.add(ty, " ")
-			self.add(before)
-			self.add(var)
-			self.add(after)
-			return
-		match ty[0]:
-			case "Array":
-				self.declare2(var, ty[1],
-					before, after)
-				self.add("[", ty[2], "]")
-			case "Arg":
-				self.declare2(var, ty[1],
-					"(" + before, after)
-				self.argtype(ty[2])
-				self.add(")")
-			case "Argbind":
-				self.declare2(var, ty[1],
-					"(" + before, after)
-				self.argbind(ty[2], False)
-				self. add(")")
-			case "Ptr":
-				self.declare2(var, ty[1],
-					"(*" + before, after + ")")
-			case "Struct":
-				self.add("struct ")
-				self.declare2(var, ty[1], before, after)
-			case "Union":
-				self.add("union ")
-				self.declare2(var, ty[1], before, after)
-			case x:
-				raise Exception(var, ty)
+	def declare2(self, var, ty):
+		l = []
+		while isinstance(ty, list):
+			l.append(ty)
+			ty = ty[1]
+		assert isinstance(ty, str)
+		build = f"{var}"
+		for ll in l:
+			match ll[0]:
+				case "Array":
+					build += f"[{ll[2]}]"
+				case "Arg":
+					at = self.argtype(ll[2])
+					build += at
+				case "Argbind":
+					at = self.argbind(ll[2])
+					build += at
+				case "Ptr":
+					build = f"(*{build})"
+				case "Struct":
+					ty = f"struct {ty}"
+				case "Union":
+					ty = f"union {ty}"
+				case x:
+					raise Exception(ty, ll)
+		return ty + " " + build
 	def declare(self, var, ty):
-		self.declare2(var, ty, "", "")
+		s = self.declare2(var, ty)
+		self.add(s)
 	def op1(self, r, prec):
 		if prec <= 1:
 			self.add("(")
@@ -89,6 +83,7 @@ class Translator:
 		self.scopeout();
 	def aval(self, av):
 		self.scopein()
+		self.newline()
 		for val in av:
 			self.expr(val, 15)
 			self.add(",")
@@ -208,48 +203,54 @@ class Translator:
 				self.add(")")
 				return
 		# the above cases are in op1/op2 but needs special handling
-		if r[0] in builtins["op2"]:
-			self.op2(r, prec)
-		elif r[0] in builtins["op1"]:
-			self.op1(r, prec)
-		elif isinstance(r, str):
+		if isinstance(r, str):
+			# expr = single var
 			self.add(r)
-		else:
-			# call
-			self.expr(r[0], 1)
-			self.argval(r[1:])
+			return
+		if isinstance(r[0], str):
+			if r[0] in builtins["op2"]:
+				self.op2(r, prec)
+				return
+			elif r[0] in builtins["op1"]:
+				self.op1(r, prec)
+				return
+		# call
+		self.expr(r[0], 1)
+		self.argval(r[1:])
 	def argtype(self, r):
-		self.add("(")
+		result = ["("]
 		first = True
 		for ty in r:
 			if first:
 				first = False
 			else:
-				self.add(",")
-			self.declare("", ty)
+				result.append(",")
+			result.append(self.declare2("", ty))
 		if first:
-			self.add("void")
-		self.add(")")
-	def argbind(self, r, struct_style):
-		if struct_style:
-			syms = "{;}"
-		else:
-			syms = "(,)"
-		self.add(syms[0])
+			result.append("void")
+		result.append(")")
+		return "".join(result)
+	def fields(self, r):
+		self.scopein()
+		for var, ty in r:
+			self.newline()
+			self.add(self.declare2(var, ty))
+			self.add(";")
+		self.scopeout()
+	def argbind(self, r):
+		syms = "(,)"
+		result = "("
 		first = True
 		for var, ty in r:
 			if first:
 				first = False
 			else:
-				self.add(syms[1])
-			self.declare(var, ty)
+				result += ", "
+			result += self.declare2(var, ty)
 		if first:
-			if struct_style:
-				raise Exception("empty struct not allowed")
-			self.add("void")
-		if struct_style:
-			self.add(syms[1])
-		self.add(syms[2])
+			result += "void"
+		result += ")"
+		return result
 	def argval(self, r):
 		self.add("(")
 		first = True
@@ -265,7 +266,7 @@ class Translator:
 			self.add(f"typedef {r[0]} {r[1]} {r[1]}")
 		else:
 			self.add(f"{r[0]} {r[1]}")
-			self.argbind(r[2], True)
+			self.fields(r[2])
 		self.add(";")
 	def translate(self, r, header):
 		match r[0]:
