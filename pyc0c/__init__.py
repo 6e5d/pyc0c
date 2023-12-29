@@ -1,6 +1,7 @@
 from importer import importer
 importer("../../pyltr/pyltr", __file__)
 importer("../../pycdb/pycdb", __file__)
+importer("../../syslib/syslib", __file__)
 importer("../../gid/gid", __file__)
 
 from pathlib import Path

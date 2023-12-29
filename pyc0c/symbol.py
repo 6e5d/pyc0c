@@ -1,7 +1,8 @@
 # symbol table analysis
 
 from gid import gid2c
-from pycdb import btypes, consts, opprec, syssyms
+from pycdb import btypes, consts, opprec
+from syslib import symtable
 from . import commands
 
 # symbolman.analyze takes a list of blocks
@@ -9,10 +10,19 @@ from . import commands
 class Symbolman:
 	def __init__(self, gids): # gid[0] must be self
 		self.gids = gids
-		self.camels = [gid2c(g, "camel") for g in gids]
-		self.snakes = [gid2c(g, "snake") for g in gids]
+		self.camels = []
+		self.snakes = []
 		self.parsing_public = False
 		self.locals = []
+
+		externals = []
+		for gid in gids:
+			if gid[:3] == ["com", "6e5d", "syslib"]:
+				externals.append(gid)
+			else:
+				self.camels.append(gid2c(gid, "camel"))
+				self.snakes.append(gid2c(gid, "snake"))
+		self.symtable = symtable(externals)
 
 		# defined symbol name, corresponding to block
 		self.defined = []
@@ -56,7 +66,7 @@ class Symbolman:
 		if ns != None:
 			self.kjkj[sym] = ns
 		else:
-			ns = syssyms[sym]
+			ns = self.symtable[sym]
 			self.external[sym] = ns
 		if self.parsing_public:
 			self.header_includes.add(tuple(ns))
@@ -120,6 +130,19 @@ class Symbolman:
 				continue
 			raise Exception(rr)
 	def analyze_rule(self, j, parent):
+		# handle special(single definition sections)
+		match parent:
+			case "nonterm/branch":
+				self.analyze_rule(j[0], "nonterm/expr")
+				self.analyze_rule(j[1], "nonterm/expr")
+				return
+			case "nonterm/designated":
+				self.analyze_rule(j[1], "nonterm/expr")
+				return
+			case "nonterm/fields":
+				raise Exception("fields only in uniform")
+			case "nonterm/declare":
+				raise Exception("declares only in uniform")
 		if isinstance(j, str):
 			match parent:
 				case "nonterm/type":

@@ -26,16 +26,21 @@ class Translator:
 		match ty[0]:
 			case "Array":
 				self.declare2(var, ty[1],
-					before + "(", after)
-				self.add("[", ty[2], "]", ")")
+					before, after)
+				self.add("[", ty[2], "]")
 			case "Arg":
 				self.declare2(var, ty[1],
-					before + "(", after)
+					"(" + before, after)
 				self.argtype(ty[2])
 				self.add(")")
+			case "Argbind":
+				self.declare2(var, ty[1],
+					"(" + before, after)
+				self.argbind(ty[2], False)
+				self. add(")")
 			case "Ptr":
 				self.declare2(var, ty[1],
-					before + "*", after)
+					"(*" + before, after + ")")
 			case "Struct":
 				self.add("struct ")
 				self.declare2(var, ty[1], before, after)
@@ -82,6 +87,12 @@ class Translator:
 			self.expr(val, 15)
 			self.add(",")
 		self.scopeout();
+	def aval(self, av):
+		self.scopein()
+		for val in av:
+			self.expr(val, 15)
+			self.add(",")
+		self.scopeout();
 	def expr(self, r, prec):
 		match r[0]:
 			case "begin":
@@ -91,20 +102,24 @@ class Translator:
 					if self.expr(rr, 16) not in [
 						"begin",
 						"cond",
+						"case",
 						"while",
 						"for",
 					]:
 						self.add(";")
 				self.scopeout()
 				return r[0]
-			case "set" | "sets" | "var":
+			case "set" | "var":
 				self.declare(r[1], r[2])
 				if r[0] == "set":
 					self.add(" = ")
 					self.expr(r[3], 14)
-				elif r[0] == "sets":
-					self.add(" = ")
-					self.sval(r[3])
+				return
+			case "sval":
+				self.sval(r[1:])
+				return
+			case "aval":
+				self.aval(r[1:])
 				return
 			case "continue":
 				self.add("continue")
@@ -117,6 +132,9 @@ class Translator:
 			case "return":
 				self.add("return ")
 				self.expr(r[1], 16)
+				return
+			case "returnvoid":
+				self.add("return")
 				return
 			case "sizeof":
 				self.add("sizeof(")
@@ -184,16 +202,6 @@ class Translator:
 				if prec <= 1:
 					self.add(")")
 				return
-			case "casts":
-				if prec <= 1:
-					self.add("(")
-				self.add("(")
-				self.declare("", r[1])
-				self.add(")")
-				self.sval(r[2])
-				if prec <= 1:
-					self.add(")")
-				return
 			case "sizeof":
 				self.add("sizeof(")
 				self.declare("", r[1])
@@ -252,24 +260,23 @@ class Translator:
 				self.add(",")
 			self.expr(var, 15)
 		self.add(")")
-	def translate_struct(self, r, header):
+	def translate_su(self, r, header):
 		if header:
-			self.add(f"typedef struct {r[1]} {r[1]}")
+			self.add(f"typedef {r[0]} {r[1]} {r[1]}")
 		else:
-			self.add(f"struct {r[1]}")
+			self.add(f"{r[0]} {r[1]}")
 			self.argbind(r[2], True)
 		self.add(";")
 	def translate(self, r, header):
 		match r[0]:
 			case "fn":
-				self.declare(r[1], r[3])
-				self.argbind(r[2], False)
+				self.declare(r[1], ["Argbind", r[3], r[2]])
 				if header:
 					self.add(";")
 				else:
 					self.expr(r[4], 16)
-			case "struct":
-				self.translate_struct(r, header)
+			case "struct" | "union":
+				self.translate_su(r, header)
 			case x:
 				raise Exception(x)
 		output = self.output

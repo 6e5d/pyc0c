@@ -11,6 +11,8 @@
 [expr keyword/sizeof type]
 [expr keyword/lit builtin/type literal]
 [expr keyword/nop]
+[expr keyword/sval designated *]
+[expr keyword/aval expr *]
 [expr keyword/. expr ident/field]
 [expr keyword/-> expr ident/field]
 [expr expr expr *]
@@ -31,8 +33,6 @@
 # declare (stmt)
 [expr keyword/var ident/local type]
 [expr keyword/set ident/local type expr]
-[expr keyword/seta ident/local type [expr *]]
-[expr keyword/sets ident/local type [designated *]]
 
 [block keyword/struct ident/var [fields *]]
 [block keyword/union ident/var [fields *]]
