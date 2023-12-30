@@ -1,6 +1,6 @@
 [
 [type keyword/Array type ident/var]
-[type keyword/Arg type [type *]]
+[type keyword/Arg type *]
 [type keyword/Ptr type]
 [type keyword/Struct type]
 [type keyword/Union type]

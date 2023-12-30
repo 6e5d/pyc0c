@@ -28,7 +28,7 @@ class Translator:
 				case "Array":
 					build += f"[{ll[2]}]"
 				case "Arg":
-					at = self.argtype(ll[2])
+					at = self.argtype(ll[2:])
 					build += at
 				case "Argbind":
 					at = self.argbind(ll[2])

@@ -71,7 +71,6 @@ class Symbolman:
 		for l in self.locals:
 			if sym in l:
 				return
-		# print(sym)
 		if sym in consts:
 			return
 		ns = self.gid_match(sym)
@@ -79,6 +78,7 @@ class Symbolman:
 			self.kjkj[sym] = ns
 		else:
 			if sym not in self.symtable:
+				#raise Exception(sym)
 				self.missing.append(sym)
 				return
 			ns = self.symtable[sym]
@@ -88,6 +88,7 @@ class Symbolman:
 		else:
 			self.src_includes.add(tuple(ns))
 	def uniform(self, j, rule_name):
+		assert isinstance(j, list)
 		assert rule_name.startswith("nonterm/")
 		match rule_name.removeprefix("nonterm/"):
 			case "declare":
