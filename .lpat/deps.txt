@@ -1,4 +1,4 @@
 pyltr
 pycdb
-gid
-syslib
+pyc0parse
+buildc

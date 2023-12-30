@@ -1,5 +1,6 @@
 from . import builtins
 from pycdb import opprec
+from pyltr import S
 
 class Translator:
 	def __init__(self):
@@ -89,6 +90,9 @@ class Translator:
 			self.add(",")
 		self.scopeout();
 	def expr(self, r, prec):
+		if isinstance(r, S):
+			self.add(r.s)
+			return
 		match r[0]:
 			case "begin":
 				self.scopein()
@@ -268,6 +272,17 @@ class Translator:
 			self.add(f"{r[0]} {r[1]}")
 			self.fields(r[2])
 		self.add(";")
+	def translate_const(self, r):
+		if isinstance(r[3], str) and r[3][0].isdigit():
+			self.add(f"#define {r[1]} {r[3]}")
+			self.newline()
+			return
+		self.add("const static ")
+		self.declare(r[1], r[2])
+		self.add(" = ")
+		self.expr(r[3], 14)
+		self.add(";")
+		self.newline()
 	def translate(self, r, header):
 		match r[0]:
 			case "fn":
@@ -278,6 +293,9 @@ class Translator:
 					self.expr(r[4], 16)
 			case "struct" | "union":
 				self.translate_su(r, header)
+			case "const":
+				if header:
+					self.translate_const(r)
 			case x:
 				raise Exception(x)
 		output = self.output
