@@ -35,5 +35,6 @@ def step3(proj, hasmain, links):
 
 def buildc0c(proj):
 	gids = get_deps(proj)
-	hasmain, links = step2(proj, gids)
-	step3(proj, hasmain, links)
+	hasmain, links, header_only = step2(proj, gids)
+	if not header_only:
+		step3(proj, hasmain, links)

@@ -27,7 +27,12 @@ class Translator:
 		for ll in l:
 			match ll[0]:
 				case "Array":
-					build += f"[{ll[2]}]"
+					v = ll[2]
+					if isinstance(v, S):
+						build += f"[{v.s}]"
+					else:
+						assert isinstance(v, str)
+						build += f"[{v}]"
 				case "Arg":
 					at = self.argtype(ll[2:])
 					build += at
@@ -273,10 +278,11 @@ class Translator:
 			self.fields(r[2])
 		self.add(";")
 	def translate_const(self, r):
-		if isinstance(r[3], str) and r[3][0].isdigit():
-			self.add(f"#define {r[1]} {r[3]}")
-			self.newline()
-			return
+		if isinstance(r[3], S):
+			if r[3].s[0].isdigit() and r[2] == "int":
+				self.add(f"#define {r[1]} {r[3].s}")
+				self.newline()
+				return
 		self.add("const static ")
 		self.declare(r[1], r[2])
 		self.add(" = ")

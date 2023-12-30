@@ -30,6 +30,7 @@ def step2(proj, gids):
 	d = proj / "build"
 	main = False
 	src_includes, header_includes, links = build_files(sm)
+	header_only = True
 	with (
 		open(d / f"{stem}.c", "w") as fc,
 		open(d / f"{stem}.h", "w") as fh,
@@ -64,5 +65,6 @@ def step2(proj, gids):
 			if b[0] != "fn":
 				continue
 			code = t.translate(b, False)
+			header_only = False
 			print("".join(code), file = fc)
-	return main, links
+	return main, links, header_only
